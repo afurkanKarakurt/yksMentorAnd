@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -6,33 +6,213 @@ import {
   StyleSheet,
   ScrollView,
   Dimensions,
-  TextInput,
   FlatList,
   Alert,
+  SafeAreaView,
+  TextInput,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { LineChart } from 'react-native-chart-kit';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const MENU_ITEMS = ['Hızlı Erişim', 'Görevlerim', 'Performans', 'Görüşmeler'];
+const CURRENT_USER_KEY = 'currentUser';
+const USERS_KEY = 'registeredUsers';
 const windowWidth = Dimensions.get('window').width;
 
-export default function HomeScreen({ navigation }) {
+// Öğretmen Paneli Component
+const TeacherDashboard = ({ currentUser, navigation }) => {
+  const [linkedStudents, setLinkedStudents] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadStudents = async () => {
+      try {
+        setLoading(true);
+        const storedUsers = await AsyncStorage.getItem(USERS_KEY);
+        if (storedUsers && currentUser?.teacherCode) {
+          const users = JSON.parse(storedUsers);
+          const students = users.filter(
+            (u) =>
+              u.role === 'student' &&
+              u.linkedTeacherCode === currentUser.teacherCode
+          );
+          setLinkedStudents(students);
+        }
+      } catch (error) {
+        console.error('Öğrenciler yüklenirken hata:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadStudents();
+  }, [currentUser?.teacherCode]);
+
+  const handleCopyCode = () => {
+    if (currentUser?.teacherCode) {
+      Alert.alert('✅ Kopyalandı', `Kod "${currentUser.teacherCode}" panoya kopyalandı.`);
+    }
+  };
+
+  const getStudentInitials = (name) => {
+    return name
+      .split(' ')
+      .map((n) => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
+  const renderStudentItem = ({ item }) => (
+    <TouchableOpacity
+      style={styles.studentCard}
+      activeOpacity={0.75}
+      onPress={() => {
+        Alert.alert(
+          item.username,
+          `E-posta: ${item.email}\n\nDetaylı bilgi sayfası yakında eklenecek.`
+        );
+      }}
+    >
+      <View style={styles.avatarContainer}>
+        <LinearGradient
+          colors={['#6C63FF', '#A855F7']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.avatar}
+        >
+          <Text style={styles.avatarText}>{getStudentInitials(item.username)}</Text>
+        </LinearGradient>
+      </View>
+      <View style={styles.studentInfo}>
+        <Text style={styles.studentName}>{item.username}</Text>
+        <Text style={styles.studentEmail}>{item.email}</Text>
+      </View>
+      <Text style={styles.studentArrow}>→</Text>
+    </TouchableOpacity>
+  );
+
+  return (
+    <ScrollView
+      contentContainerStyle={styles.scrollContent}
+      showsVerticalScrollIndicator={false}
+    >
+      {/* Header */}
+      <View style={styles.header}>
+        <View style={styles.headerBrand}>
+          <View style={styles.brandLogo}>
+            <Text style={styles.brandLogoText}>Y</Text>
+          </View>
+          <View>
+            <Text style={styles.headerTitle}>Öğretmen Paneli</Text>
+            <Text style={styles.headerSubtitle}>
+              Hoş geldin, {currentUser?.username}
+            </Text>
+          </View>
+        </View>
+        <TouchableOpacity
+          style={styles.logoutBtn}
+          onPress={() =>
+            navigation.reset({ index: 0, routes: [{ name: 'Login' }] })
+          }
+        >
+          <Text style={styles.logoutBtnText}>Çıkış</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Stats Cards */}
+      <View style={styles.statsRow}>
+        {/* Code Card */}
+        <LinearGradient
+          colors={['#FFFFFF', '#FAFBFF']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.statCard}
+        >
+          <Text style={styles.statCardTitle}>KATILIM KODUNUZ</Text>
+          <View style={styles.codeContainer}>
+            <Text style={styles.codeValue}>{currentUser?.teacherCode}</Text>
+            <TouchableOpacity
+              style={styles.copyButton}
+              onPress={handleCopyCode}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.copyIcon}>📋</Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.codeHelper}>
+            Öğrencilerin bu kodu ile kayıt olması için paylaş.
+          </Text>
+        </LinearGradient>
+
+        {/* Students Count Card */}
+        <LinearGradient
+          colors={['#FFFFFF', '#FAFBFF']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.statCard}
+        >
+          <Text style={styles.statCardTitle}>ÖĞRENCİ SAYISI</Text>
+          <View style={styles.countContainer}>
+            <Text style={styles.countValue}>{linkedStudents.length}</Text>
+          </View>
+          <Text style={styles.countHelper}>
+            {linkedStudents.length === 0
+              ? 'Henüz öğrenci kaydı yok'
+              : `${linkedStudents.length} öğrenci bağlı`}
+          </Text>
+        </LinearGradient>
+      </View>
+
+      {/* Students List */}
+      <View style={styles.studentsSection}>
+        <Text style={styles.sectionTitle}>Öğrencileriniz</Text>
+
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <Text style={styles.loadingText}>Yükleniyor...</Text>
+          </View>
+        ) : linkedStudents.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyEmoji}>📚</Text>
+            <Text style={styles.emptyTitle}>Henüz öğrenci yok</Text>
+            <Text style={styles.emptyText}>
+              Öğrenciler sizin katılım kodunuzu kullanarak kayıt olduğunda burada
+              görünecekler.
+            </Text>
+          </View>
+        ) : (
+          <FlatList
+            data={linkedStudents}
+            renderItem={renderStudentItem}
+            keyExtractor={(item) => item.email}
+            scrollEnabled={false}
+            contentContainerStyle={styles.studentList}
+          />
+        )}
+      </View>
+
+      {/* Bottom spacing */}
+      <View style={styles.bottomSpacer} />
+    </ScrollView>
+  );
+};
+
+// Öğrenci Dashboard Component
+const StudentDashboard = ({ currentUser, navigation, scrollRef }) => {
   const [hours, setHours] = useState('');
   const [tyt, setTyt] = useState('');
   const [ayt, setAyt] = useState('');
   const [entries, setEntries] = useState([]);
-  const scrollRef = useRef(null);
   const [tasksY, setTasksY] = useState(0);
   const [todayY, setTodayY] = useState(0);
 
   const handleSave = () => {
-    // basic validation
     if (!hours && !tyt && !ayt) {
       Alert.alert('Uyarı', 'Lütfen en az bir alan doldurun.');
       return;
     }
 
-    // validate numeric formats and ranges
     const parseNum = (v) => {
       if (v === '' || v === null || v === undefined) return null;
       const n = parseFloat(String(v).replace(',', '.'));
@@ -67,9 +247,7 @@ export default function HomeScreen({ navigation }) {
     setAyt('');
   };
 
-  // input handlers that only accept allowed characters and enforce max limits
   const handleHoursChange = (text) => {
-    // allow digits and one optional dot
     const normalized = text.replace(',', '.');
     if (/^[0-9]*\.?[0-9]*$/.test(normalized)) {
       setHours(normalized);
@@ -77,7 +255,6 @@ export default function HomeScreen({ navigation }) {
   };
 
   const handleTytChange = (text) => {
-    // allow only digits
     if (/^[0-9]*$/.test(text)) {
       if (text === '') return setTyt('');
       const n = parseInt(text, 10);
@@ -100,215 +277,567 @@ export default function HomeScreen({ navigation }) {
       setAyt(String(n));
     }
   };
+
   return (
-    <SafeAreaView style={styles.screen}>
-      <ScrollView ref={scrollRef} contentContainerStyle={styles.wrapper}>
-        <View style={styles.topBar}>
-          <View style={styles.brandBox}>
-            <Text style={styles.brandLogo}>Y</Text>
-            <Text style={styles.brandText}>YKS Mentor</Text>
+    <ScrollView ref={scrollRef} contentContainerStyle={styles.scrollContent}>
+      {/* Header */}
+      <View style={styles.headerStudent}>
+        <View style={styles.brandBox}>
+          <Text style={styles.brandLogo}>Y</Text>
+          <Text style={styles.brandText}>YKS Mentor</Text>
+        </View>
+        <View style={styles.topActions}>
+          <Text style={styles.topActionText}>
+            Merhaba, {currentUser?.username}
+          </Text>
+          <TouchableOpacity
+            style={styles.logoutButtonStudent}
+            onPress={() => navigation.reset({ index: 0, routes: [{ name: 'Login' }] })}
+          >
+            <Text style={styles.logoutText}>Çıkış Yap</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Greeting Card */}
+      <View style={styles.greetingCard}>
+        <Text style={styles.greetingTitle}>
+          Merhaba, <Text style={styles.greetingAccent}>{currentUser?.username}</Text> 👋
+        </Text>
+        <Text style={styles.greetingSubtitle}>
+          Günün hedeflerini tamamla, netlerini takip et ve sınava hazırlan!
+        </Text>
+      </View>
+
+      {/* Tasks Card */}
+      <View style={styles.statsCard} onLayout={(e) => setTasksY(e.nativeEvent.layout.y)}>
+        <View style={styles.statsHeader}>
+          <Text style={styles.statsTitle}>Görevlerim</Text>
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>0 Görev</Text>
           </View>
-          <View style={styles.topActions}>
-            <Text style={styles.topActionText}>Merhaba, test</Text>
-            <Text style={styles.topActionText}>Dashboard</Text>
+        </View>
+        <View style={styles.taskBox}>
+          <Text style={styles.taskTitle}>Harika! Tüm görevleri tamamladın.</Text>
+          <Text style={styles.taskSubtitle}>Şu an için atanan yeni bir görev yok.</Text>
+        </View>
+      </View>
+
+      {/* Today's Metrics Card */}
+      <View style={styles.statsCard} onLayout={(e) => setTodayY(e.nativeEvent.layout.y)}>
+        <Text style={styles.statsTitle}>Bugün Neler Yaptın?</Text>
+        <Text style={styles.statsCaption}>
+          Çalışma süreni ve çözdüğün deneme netlerini buraya girerek gelişimini grafiğe
+          yansıt.
+        </Text>
+        <View style={styles.metricRow}>
+          <View style={styles.metricBox}>
+            <Text style={styles.metricLabel}>⏱ Çalışma Saati</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Örn: 4.5"
+              value={hours}
+              onChangeText={handleHoursChange}
+              keyboardType="decimal-pad"
+            />
+          </View>
+          <View style={styles.metricBox}>
+            <Text style={styles.metricLabel}>🎯 TYT Net</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Maks: 120"
+              value={tyt}
+              onChangeText={handleTytChange}
+              keyboardType="numeric"
+            />
+          </View>
+          <View style={styles.metricBox}>
+            <Text style={styles.metricLabel}>🚀 AYT Net</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Maks: 80"
+              value={ayt}
+              onChangeText={handleAytChange}
+              keyboardType="numeric"
+            />
+          </View>
+        </View>
+        <TouchableOpacity style={styles.saveButton} activeOpacity={0.85} onPress={handleSave}>
+          <Text style={styles.saveButtonText}>Bugünkü Verileri Kaydet</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Chart Card */}
+      <View style={styles.chartCard}>
+        <Text style={styles.chartTitle}>Gelişim Grafiği</Text>
+        {entries.length === 0 ? (
+          <Text style={styles.chartSubtitle}>
+            Henüz performans verisi yok. Üstteki formdan ilk verinizi girin!
+          </Text>
+        ) : (
+          (() => {
+            const labels = entries
+              .slice()
+              .reverse()
+              .map((e) => (e.dateISO ? new Date(e.dateISO) : new Date(e.date)).toLocaleDateString());
+
+            const parseNum = (v) => {
+              const n = parseFloat(String(v).replace(',', '.'));
+              return isNaN(n) ? 0 : n;
+            };
+
+            const hoursData = entries.slice().reverse().map((e) => parseNum(e.hours));
+            const tytData = entries.slice().reverse().map((e) => parseNum(e.tyt));
+            const aytData = entries.slice().reverse().map((e) => parseNum(e.ayt));
+
+            const chartWidth = Math.max(windowWidth * 0.8, 320);
+            const chartConfig = {
+              backgroundGradientFrom: '#FFFFFF',
+              backgroundGradientTo: '#FFFFFF',
+              decimalPlaces: 1,
+              color: (opacity = 1) => `rgba(67,56,202,${opacity})`,
+              labelColor: () => '#6B7280',
+              propsForDots: { r: '4', strokeWidth: '2', stroke: '#4338CA' },
+            };
+
+            return (
+              <>
+                <Text style={[styles.chartSubtitle, { marginTop: 6 }]}>Çalışma Saati</Text>
+                <LineChart
+                  data={{ labels, datasets: [{ data: hoursData }] }}
+                  width={chartWidth}
+                  height={150}
+                  chartConfig={chartConfig}
+                  bezier
+                  style={{ marginVertical: 8, borderRadius: 12 }}
+                />
+
+                <Text style={styles.chartSubtitle}>TYT Net</Text>
+                <LineChart
+                  data={{ labels, datasets: [{ data: tytData }] }}
+                  width={chartWidth}
+                  height={150}
+                  chartConfig={{ ...chartConfig, color: (o = 1) => `rgba(16,185,129,${o})` }}
+                  bezier
+                  style={{ marginVertical: 8, borderRadius: 12 }}
+                />
+
+                <Text style={styles.chartSubtitle}>AYT Net</Text>
+                <LineChart
+                  data={{ labels, datasets: [{ data: aytData }] }}
+                  width={chartWidth}
+                  height={150}
+                  chartConfig={{ ...chartConfig, color: (o = 1) => `rgba(234,88,12,${o})` }}
+                  bezier
+                  style={{ marginVertical: 8, borderRadius: 12 }}
+                />
+              </>
+            );
+          })()
+        )}
+      </View>
+
+      <View style={styles.bottomSpacer} />
+    </ScrollView>
+  );
+};
+
+export default function HomeScreen({ navigation }) {
+  const [currentUser, setCurrentUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const scrollRef = useRef(null);
+
+  useEffect(() => {
+    const loadCurrentUser = async () => {
+      try {
+        setLoading(true);
+        const storedCurrentUser = await AsyncStorage.getItem(CURRENT_USER_KEY);
+        if (storedCurrentUser) {
+          setCurrentUser(JSON.parse(storedCurrentUser));
+        }
+      } catch (error) {
+        console.error('Current user yüklenemedi:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadCurrentUser();
+
+    const unsubscribe = navigation.addListener('focus', loadCurrentUser);
+    return unsubscribe;
+  }, [navigation]);
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.centerContent}>
+          <Text style={styles.centerText}>Yükleniyor...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!currentUser) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.centerContent}>
+          <Text style={styles.centerText}>Lütfen giriş yapın.</Text>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.reset({ index: 0, routes: [{ name: 'Login' }] })}
+          >
+            <Text style={styles.backButtonText}>Giriş Sayfasına Dön</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Teacher Dashboard
+  if (currentUser.role === 'teacher') {
+    return (
+      <LinearGradient
+        colors={['#EEF2FF', '#F5F3FF']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.gradient}
+      >
+        <SafeAreaView style={styles.container}>
+          <TeacherDashboard currentUser={currentUser} navigation={navigation} />
+
+          {/* Fixed Bottom Navigation */}
+          <View style={styles.fixedBottom}>
             <TouchableOpacity
-              style={styles.logoutButton}
-              onPress={() => navigation.reset({ index: 0, routes: [{ name: 'Login' }] })}
+              style={styles.bottomNavBtn}
+              activeOpacity={0.7}
+              onPress={() => navigation.navigate('Tasks')}
             >
-              <Text style={styles.logoutText}>Çıkış Yap</Text>
+              <Text style={styles.bottomNavBtnText}>Görevlerim</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.bottomNavBtn}
+              activeOpacity={0.7}
+              onPress={() => navigation.navigate('Performance')}
+            >
+              <Text style={styles.bottomNavBtnText}>Performans</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.bottomNavBtn}
+              activeOpacity={0.7}
+              onPress={() => navigation.navigate('Meetings')}
+            >
+              <Text style={styles.bottomNavBtnText}>Görüşmeler</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </SafeAreaView>
+      </LinearGradient>
+    );
+  }
 
-        <View style={styles.bodyRow}>
-          <View style={styles.sidebar} />
+  // Student Dashboard
+  return (
+    <SafeAreaView style={styles.containerStudent}>
+      <StudentDashboard currentUser={currentUser} navigation={navigation} scrollRef={scrollRef} />
 
-          <View style={styles.mainArea}>
-            <View style={styles.greetingCard}>
-              <Text style={styles.greetingTitle}>Merhaba, <Text style={styles.greetingAccent}>test</Text> 👋</Text>
-              <Text style={styles.greetingSubtitle}>
-                Günün hedeflerini tamamla, netlerini takip et ve sınava hazırlan!
-              </Text>
-            </View>
-
-            <View style={styles.statsRow}>
-              <View style={styles.statsCard} onLayout={(e) => setTasksY(e.nativeEvent.layout.y)}>
-                <View style={styles.statsHeader}>
-                  <Text style={styles.statsTitle}>Görevlerim</Text>
-                  <View style={styles.badge}>
-                    <Text style={styles.badgeText}>0 Görev</Text>
-                  </View>
-                </View>
-                <View style={styles.taskBox}>
-                  <Text style={styles.taskTitle}>Harika! Tüm görevleri tamamladın.</Text>
-                  <Text style={styles.taskSubtitle}>Şu an için atanan yeni bir görev yok.</Text>
-                </View>
-              </View>
-
-              <View style={styles.statsCard} onLayout={(e) => setTodayY(e.nativeEvent.layout.y)}>
-                <Text style={styles.statsTitle}>Bugün Neler Yaptın?</Text>
-                <Text style={styles.statsCaption}>
-                  Çalışma süreni ve çözdüğün deneme netlerini buraya girerek gelişimini grafiğe yansıt.
-                </Text>
-                <View style={styles.metricRow}>
-                  <View style={styles.metricBox}>
-                    <Text style={styles.metricLabel}>⏱ Çalışma Saati</Text>
-                    <TextInput
-                      style={styles.input}
-                      placeholder="Örn: 4.5"
-                      value={hours}
-                      onChangeText={handleHoursChange}
-                      keyboardType="decimal-pad"
-                    />
-                  </View>
-                  <View style={styles.metricBox}>
-                    <Text style={styles.metricLabel}>🎯 TYT Net</Text>
-                    <TextInput
-                      style={styles.input}
-                      placeholder="Maks: 120"
-                      value={tyt}
-                      onChangeText={handleTytChange}
-                      keyboardType="numeric"
-                    />
-                  </View>
-                  <View style={styles.metricBox}>
-                    <Text style={styles.metricLabel}>🚀 AYT Net</Text>
-                    <TextInput
-                      style={styles.input}
-                      placeholder="Maks: 80"
-                      value={ayt}
-                      onChangeText={handleAytChange}
-                      keyboardType="numeric"
-                    />
-                  </View>
-                </View>
-                <TouchableOpacity style={styles.saveButton} activeOpacity={0.85} onPress={handleSave}>
-                  <Text style={styles.saveButtonText}>Bugünkü Verileri Kaydet</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-            <View style={styles.chartCard}>
-              <Text style={styles.chartTitle}>Gelişim Grafiği</Text>
-              {entries.length === 0 ? (
-                <Text style={styles.chartSubtitle}>
-                  Henüz performans verisi yok. Üstteki formdan ilk verinizi girin!
-                </Text>
-              ) : (
-                (() => {
-                  const labels = entries
-                    .slice()
-                    .reverse()
-                    .map((e) => (e.dateISO ? new Date(e.dateISO) : new Date(e.date)).toLocaleDateString());
-
-                  const parseNum = (v) => {
-                    const n = parseFloat(String(v).replace(',', '.'));
-                    return isNaN(n) ? 0 : n;
-                  };
-
-                  const hoursData = entries.slice().reverse().map((e) => parseNum(e.hours));
-                  const tytData = entries.slice().reverse().map((e) => parseNum(e.tyt));
-                  const aytData = entries.slice().reverse().map((e) => parseNum(e.ayt));
-
-                  const chartWidth = Math.max(windowWidth * 0.8, 320);
-                  const chartConfig = {
-                    backgroundGradientFrom: '#FFFFFF',
-                    backgroundGradientTo: '#FFFFFF',
-                    decimalPlaces: 1,
-                    color: (opacity = 1) => `rgba(67,56,202,${opacity})`,
-                    labelColor: () => '#6B7280',
-                    propsForDots: { r: '4', strokeWidth: '2', stroke: '#4338CA' },
-                  };
-
-                  return (
-                    <>
-                      <Text style={[styles.chartSubtitle, { marginTop: 6 }]}>Çalışma Saati</Text>
-                      <LineChart
-                        data={{ labels, datasets: [{ data: hoursData }] }}
-                        width={chartWidth}
-                        height={150}
-                        chartConfig={chartConfig}
-                        bezier
-                        style={{ marginVertical: 8, borderRadius: 12 }}
-                      />
-
-                      <Text style={styles.chartSubtitle}>TYT Net</Text>
-                      <LineChart
-                        data={{ labels, datasets: [{ data: tytData }] }}
-                        width={chartWidth}
-                        height={150}
-                        chartConfig={{ ...chartConfig, color: (o = 1) => `rgba(16,185,129,${o})` }}
-                        bezier
-                        style={{ marginVertical: 8, borderRadius: 12 }}
-                      />
-
-                      <Text style={styles.chartSubtitle}>AYT Net</Text>
-                      <LineChart
-                        data={{ labels, datasets: [{ data: aytData }] }}
-                        width={chartWidth}
-                        height={150}
-                        chartConfig={{ ...chartConfig, color: (o = 1) => `rgba(234,88,12,${o})` }}
-                        bezier
-                        style={{ marginVertical: 8, borderRadius: 12 }}
-                      />
-                    </>
-                  );
-                })()
-              )}
-            </View>
-
-            {/* footer buttons removed from content; fixed bottom bar added below */}
-          </View>
-        </View>
-      </ScrollView>
-
-      <View style={styles.fixedBottom} pointerEvents="box-none">
-        <View style={styles.fixedInner}>
-          <TouchableOpacity
-            style={styles.bottomBtn}
-            activeOpacity={0.85}
-            onPress={() => {
-              if (scrollRef.current) scrollRef.current.scrollTo({ y: tasksY - 20, animated: true });
-            }}
-          >
-            <Text style={styles.bottomBtnText}>Görevlerim</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.bottomBtn}
-            activeOpacity={0.85}
-            onPress={() => {
-              if (scrollRef.current) scrollRef.current.scrollTo({ y: todayY - 20, animated: true });
-            }}
-          >
-            <Text style={styles.bottomBtnText}>Performans</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.bottomBtn}
-            activeOpacity={0.85}
-            onPress={() => navigation.navigate('Meetings')}
-          >
-            <Text style={styles.bottomBtnText}>Görüşmeler</Text>
-          </TouchableOpacity>
-        </View>
+      {/* Fixed Bottom Navigation for Student */}
+      <View style={styles.fixedBottomStudent}>
+        <TouchableOpacity
+          style={styles.bottomBtn}
+          activeOpacity={0.85}
+          onPress={() => {
+            if (scrollRef.current) scrollRef.current.scrollTo({ y: 0, animated: true });
+          }}
+        >
+          <Text style={styles.bottomBtnText}>Görevlerim</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.bottomBtn}
+          activeOpacity={0.85}
+          onPress={() => {
+            if (scrollRef.current) scrollRef.current.scrollTo({ y: 200, animated: true });
+          }}
+        >
+          <Text style={styles.bottomBtnText}>Performans</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.bottomBtn}
+          activeOpacity={0.85}
+          onPress={() => navigation.navigate('Meetings')}
+        >
+          <Text style={styles.bottomBtnText}>Görüşmeler</Text>
+        </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: {
+  gradient: {
+    flex: 1,
+  },
+  container: {
+    flex: 1,
+  },
+  containerStudent: {
     flex: 1,
     backgroundColor: '#F7F8FC',
   },
-  wrapper: {
-    paddingVertical: 20,
+  scrollContent: {
     paddingHorizontal: 16,
-    paddingBottom: 140,
+    paddingVertical: 16,
+    paddingBottom: 120,
   },
-  topBar: {
-    flexDirection: windowWidth > 720 ? 'row' : 'column',
+  // Teacher Dashboard Styles
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 16,
+    shadowColor: '#6C63FF',
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  headerBrand: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  brandLogo: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: '#6C63FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  brandLogoText: {
+    color: '#FFFFFF',
+    fontSize: 24,
+    fontWeight: '800',
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#111827',
+  },
+  headerSubtitle: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  logoutBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    backgroundColor: '#FEE2E2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  logoutBtnText: {
+    color: '#DC2626',
+    fontWeight: '700',
+    fontSize: 13,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 24,
+    gap: 12,
+  },
+  statCard: {
+    flex: 1,
+    borderRadius: 18,
+    padding: 18,
+    shadowColor: '#6C63FF',
+    shadowOpacity: 0.12,
+    shadowOffset: { width: 0, height: 6 },
+    shadowRadius: 16,
+    elevation: 4,
+  },
+  statCardTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#6B7280',
+    marginBottom: 12,
+    letterSpacing: 0.5,
+  },
+  codeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  codeValue: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#6C63FF',
+    letterSpacing: 2,
+    flex: 1,
+  },
+  copyButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: '#EEF2FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  copyIcon: {
+    fontSize: 20,
+  },
+  codeHelper: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    lineHeight: 18,
+  },
+  countContainer: {
+    marginBottom: 10,
+  },
+  countValue: {
+    fontSize: 48,
+    fontWeight: '800',
+    color: '#A855F7',
+  },
+  countHelper: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    lineHeight: 18,
+  },
+  studentsSection: {
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#111827',
+    marginBottom: 16,
+  },
+  studentList: {
+    paddingBottom: 8,
+  },
+  studentCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 10,
+    shadowColor: '#6C63FF',
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 3 },
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  avatarContainer: {
+    marginRight: 12,
+  },
+  avatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  studentInfo: {
+    flex: 1,
+  },
+  studentName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  studentEmail: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 3,
+  },
+  studentArrow: {
+    fontSize: 18,
+    color: '#D1D5DB',
+    marginLeft: 10,
+  },
+  loadingContainer: {
+    paddingVertical: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    color: '#6B7280',
+    fontSize: 16,
+  },
+  emptyContainer: {
+    paddingVertical: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+  },
+  emptyEmoji: {
+    fontSize: 48,
+    marginBottom: 12,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 8,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: '#6B7280',
+    textAlign: 'center',
+    lineHeight: 22,
+    paddingHorizontal: 20,
+  },
+  bottomSpacer: {
+    height: 20,
+  },
+  fixedBottom: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    paddingBottom: 12,
+  },
+  bottomNavBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    marginHorizontal: 4,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  bottomNavBtnText: {
+    color: '#6C63FF',
+    fontWeight: '700',
+    fontSize: 13,
+  },
+  // Student Dashboard Styles
+  headerStudent: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 16,
+    paddingHorizontal: 16,
+    paddingTop: 16,
   },
   brandBox: {
     flexDirection: 'row',
@@ -341,7 +870,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginRight: 14,
   },
-  logoutButton: {
+  logoutButtonStudent: {
     borderWidth: 1,
     borderColor: '#E5E7EB',
     borderRadius: 999,
@@ -353,43 +882,6 @@ const styles = StyleSheet.create({
     color: '#111827',
     fontWeight: '600',
   },
-  bodyRow: {
-    flexDirection: windowWidth > 920 ? 'row' : 'column',
-  },
-  sidebar: {
-    width: windowWidth > 920 ? 240 : '100%',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    paddingVertical: 22,
-    paddingHorizontal: 18,
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowOffset: { width: 0, height: 8 },
-    shadowRadius: 24,
-    elevation: 5,
-    marginBottom: windowWidth > 920 ? 0 : 16,
-  },
-  sidebarTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 18,
-  },
-  sidebarItem: {
-    paddingVertical: 14,
-    paddingHorizontal: 12,
-    borderRadius: 16,
-    marginBottom: 10,
-    backgroundColor: '#F8FAFF',
-  },
-  sidebarItemText: {
-    color: '#1F2937',
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  mainArea: {
-    flex: 1,
-  },
   greetingCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 24,
@@ -400,6 +892,7 @@ const styles = StyleSheet.create({
     shadowRadius: 32,
     elevation: 6,
     marginBottom: 16,
+    marginHorizontal: 16,
   },
   greetingTitle: {
     fontSize: 28,
@@ -415,11 +908,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22,
   },
-  statsRow: {
-    flexDirection: windowWidth > 720 ? 'row' : 'column',
-  },
   statsCard: {
-    flex: 1,
     backgroundColor: '#FFFFFF',
     borderRadius: 24,
     padding: 20,
@@ -429,6 +918,7 @@ const styles = StyleSheet.create({
     shadowRadius: 24,
     elevation: 5,
     marginBottom: 16,
+    marginHorizontal: 16,
   },
   statsHeader: {
     flexDirection: 'row',
@@ -492,6 +982,11 @@ const styles = StyleSheet.create({
     padding: 14,
     marginBottom: 12,
   },
+  metricLabel: {
+    color: '#4B5563',
+    fontSize: 12,
+    marginBottom: 6,
+  },
   input: {
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
@@ -499,64 +994,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderWidth: 1,
     borderColor: '#E5E7EB',
-  },
-  entryRow: {
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
-  },
-  entryDate: { color: '#6B7280', fontSize: 12, marginBottom: 4 },
-  entryText: { color: '#111827', fontWeight: '600' },
-  footerButtons: {
-    flexDirection: windowWidth > 720 ? 'row' : 'column',
-    justifyContent: 'space-between',
-    marginTop: 20,
-  },
-  footerBtn: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 12,
-    borderRadius: 12,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    marginRight: windowWidth > 720 ? 12 : 0,
-    marginBottom: windowWidth > 720 ? 0 : 12,
-  },
-  footerBtnText: { color: '#4338CA', fontWeight: '700' },
-  fixedBottom: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 12,
-    alignItems: 'center',
-  },
-  fixedInner: {
-    flexDirection: 'row',
-    backgroundColor: 'transparent',
-    width: '94%',
-    justifyContent: 'space-between',
-  },
-  bottomBtn: {
-    flex: 1,
-    marginHorizontal: 6,
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 12,
-    borderRadius: 12,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  bottomBtnText: { color: '#4338CA', fontWeight: '700' },
-  metricLabel: {
-    color: '#4B5563',
-    fontSize: 12,
-    marginBottom: 6,
-  },
-  metricValue: {
-    color: '#111827',
-    fontSize: 15,
-    fontWeight: '700',
   },
   saveButton: {
     borderRadius: 18,
@@ -578,6 +1015,8 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 12 },
     shadowRadius: 24,
     elevation: 5,
+    marginBottom: 16,
+    marginHorizontal: 16,
   },
   chartTitle: {
     fontSize: 18,
@@ -589,5 +1028,51 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6B7280',
     lineHeight: 20,
+  },
+  fixedBottomStudent: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+  },
+  bottomBtn: {
+    flex: 1,
+    marginHorizontal: 6,
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  bottomBtnText: {
+    color: '#4338CA',
+    fontWeight: '700',
+  },
+  centerContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+  centerText: {
+    fontSize: 18,
+    color: '#6B7280',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  backButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    backgroundColor: '#6C63FF',
+    borderRadius: 10,
+  },
+  backButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 16,
   },
 });

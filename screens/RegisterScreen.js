@@ -24,6 +24,19 @@ export default function RegisterScreen({ navigation }) {
   const [password, setPassword] = useState('');
   const [teacherCode, setTeacherCode] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+
+  const generateTeacherCode = (existingCodes = []) => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let code;
+    do {
+      code = '';
+      for (let i = 0; i < 6; i += 1) {
+        code += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+    } while (existingCodes.includes(code));
+    return code;
+  };
+
   const [loading, setLoading] = useState(false);
 
   // Focus states
@@ -107,12 +120,39 @@ export default function RegisterScreen({ navigation }) {
         return;
       }
 
+      if (role === 'student') {
+        if (!teacherCode.trim()) {
+          setLoading(false);
+          Alert.alert(
+            'Kayıt Hatası',
+            'Öğrenci kaydı için öğretmen kodu gereklidir.'
+          );
+          return;
+        }
+
+        const matchingTeacher = users.find(
+          (user) => user.role === 'teacher' && user.teacherCode === teacherCode.trim()
+        );
+        if (!matchingTeacher) {
+          setLoading(false);
+          Alert.alert(
+            'Kayıt Hatası',
+            'Geçerli bir öğretmen kodu bulunamadı. Kodunuzu kontrol edin.'
+          );
+          return;
+        }
+      }
+
+      const teacherCodes = users
+        .filter((user) => user.role === 'teacher' && user.teacherCode)
+        .map((user) => user.teacherCode);
       const newUser = {
         username: username.trim(),
         email: normalizedEmail,
         password,
         role,
-        teacherCode: teacherCode.trim() || null,
+        teacherCode: role === 'teacher' ? generateTeacherCode(teacherCodes) : null,
+        linkedTeacherCode: role === 'student' ? teacherCode.trim() : null,
       };
 
       await AsyncStorage.setItem(USERS_KEY, JSON.stringify([...users, newUser]));
@@ -375,7 +415,7 @@ export default function RegisterScreen({ navigation }) {
               </View>
 
               {/* Teacher Code (conditional) */}
-              {role === 'teacher' && (
+              {role === 'student' && (
                 <View style={styles.fieldGroup}>
                   <Text style={styles.label}>
                     Öğretmen Katılım Kodu{' '}

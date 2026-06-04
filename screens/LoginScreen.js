@@ -16,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const CURRENT_USER_KEY = 'currentUser';
 
 export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState('');
@@ -95,6 +96,7 @@ export default function LoginScreen({ navigation }) {
         return;
       }
 
+      await AsyncStorage.setItem(CURRENT_USER_KEY, JSON.stringify(matchedUser));
       setLoading(false);
       Alert.alert(
         '✅ Giriş Başarılı',
