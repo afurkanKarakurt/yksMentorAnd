@@ -63,7 +63,8 @@ export default function RegisterScreen({ navigation }) {
       setUsernameError('Kullanıcı adı en az 3 karakter olmalıdır.');
       return false;
     }
-    if (!/^[a-zA-Z0-9_]+$/.test(val.trim())) {
+    // Allow Latin letters and Turkish-specific letters, digits and underscore
+    if (!/^[A-Za-z0-9_ÇçĞğİıÖöŞşÜü]+$/.test(val.trim())) {
       setUsernameError('Sadece harf, rakam ve alt çizgi kullanılabilir.');
       return false;
     }

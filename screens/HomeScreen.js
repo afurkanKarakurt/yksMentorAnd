@@ -14,6 +14,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { LineChart } from 'react-native-chart-kit';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Modal } from 'react-native';
 
 const CURRENT_USER_KEY = 'currentUser';
 const USERS_KEY = 'registeredUsers';
@@ -23,6 +24,14 @@ const windowWidth = Dimensions.get('window').width;
 const TeacherDashboard = ({ currentUser, navigation }) => {
   const [linkedStudents, setLinkedStudents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedStudent, setSelectedStudent] = useState(null);
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [modalSelectedStudent, setModalSelectedStudent] = useState(null);
+  const [taskTitle, setTaskTitle] = useState('');
+  const [taskDue, setTaskDue] = useState('');
+  const [meetingNote, setMeetingNote] = useState('');
+  const [meetingDate, setMeetingDate] = useState('');
+  const [meetingLink, setMeetingLink] = useState('');
 
   useEffect(() => {
     const loadStudents = async () => {
@@ -32,11 +41,11 @@ const TeacherDashboard = ({ currentUser, navigation }) => {
         if (storedUsers && currentUser?.teacherCode) {
           const users = JSON.parse(storedUsers);
           const students = users.filter(
-            (u) =>
-              u.role === 'student' &&
-              u.linkedTeacherCode === currentUser.teacherCode
+            (u) => u.role === 'student' && u.linkedTeacherCode === currentUser.teacherCode
           );
           setLinkedStudents(students);
+        } else {
+          setLinkedStudents([]);
         }
       } catch (error) {
         console.error('Öğrenciler yüklenirken hata:', error);
@@ -50,11 +59,20 @@ const TeacherDashboard = ({ currentUser, navigation }) => {
 
   const handleCopyCode = () => {
     if (currentUser?.teacherCode) {
+      try {
+        // try to use clipboard if available, otherwise fallback to alert
+        if (typeof navigator !== 'undefined' && navigator.clipboard) {
+          navigator.clipboard.writeText(currentUser.teacherCode);
+        }
+      } catch (e) {
+        // ignore
+      }
       Alert.alert('✅ Kopyalandı', `Kod "${currentUser.teacherCode}" panoya kopyalandı.`);
     }
   };
 
   const getStudentInitials = (name) => {
+    if (!name) return '--';
     return name
       .split(' ')
       .map((n) => n[0])
@@ -63,16 +81,19 @@ const TeacherDashboard = ({ currentUser, navigation }) => {
       .slice(0, 2);
   };
 
+  const selectStudent = (student) => {
+    setSelectedStudent(student);
+  };
+
   const renderStudentItem = ({ item }) => (
     <TouchableOpacity
-      style={styles.studentCard}
-      activeOpacity={0.75}
-      onPress={() => {
-        Alert.alert(
-          item.username,
-          `E-posta: ${item.email}\n\nDetaylı bilgi sayfası yakında eklenecek.`
-        );
-      }}
+      style={[
+        styles.studentCard,
+        selectedStudent?.email === item.email && { borderColor: '#6C63FF', borderWidth: 2 },
+      ]}
+      activeOpacity={0.85}
+      onPress={() => navigation.navigate('StudentDetail', { student: item })}
+      onLongPress={() => selectStudent(item)}
     >
       <View style={styles.avatarContainer}>
         <LinearGradient
@@ -86,17 +107,133 @@ const TeacherDashboard = ({ currentUser, navigation }) => {
       </View>
       <View style={styles.studentInfo}>
         <Text style={styles.studentName}>{item.username}</Text>
-        <Text style={styles.studentEmail}>{item.email}</Text>
+        <Text style={styles.studentEmail}>ID: {item.email}</Text>
       </View>
-      <Text style={styles.studentArrow}>→</Text>
+      <Text style={styles.studentArrow}>›</Text>
     </TouchableOpacity>
   );
 
+  const saveTaskForStudent = async () => {
+    if (!selectedStudent) {
+      Alert.alert('Uyarı', 'Önce bir öğrenci seçin.');
+      return;
+    }
+    if (!taskTitle.trim()) {
+      Alert.alert('Uyarı', 'Görev başlığı boş olamaz.');
+      return;
+    }
+    try {
+      const raw = await AsyncStorage.getItem('assignedTasks');
+      const list = raw ? JSON.parse(raw) : [];
+      const newTask = {
+        id: Date.now().toString(),
+        teacherEmail: currentUser.email,
+        studentEmail: selectedStudent.email,
+        title: taskTitle.trim(),
+        due: taskDue.trim() || null,
+        createdAt: new Date().toISOString(),
+      };
+      await AsyncStorage.setItem('assignedTasks', JSON.stringify([newTask, ...list]));
+      setTaskTitle('');
+      setTaskDue('');
+      Alert.alert('Başarılı', 'Görev öğrenciye atandı.');
+    } catch (error) {
+      console.error('Görev kaydedilemedi', error);
+      Alert.alert('Hata', 'Görev kaydedilemedi.');
+    }
+  };
+
+  const saveMeetingForStudent = async () => {
+    if (!selectedStudent) {
+      Alert.alert('Uyarı', 'Önce bir öğrenci seçin.');
+      return;
+    }
+    if (!meetingDate.trim()) {
+      Alert.alert('Uyarı', 'Görüşme tarihi girin.');
+      return;
+    }
+    try {
+      const raw = await AsyncStorage.getItem('meetings');
+      const list = raw ? JSON.parse(raw) : [];
+      const newMeeting = {
+        id: Date.now().toString(),
+        teacherEmail: currentUser.email,
+        studentEmail: selectedStudent.email,
+        note: meetingNote.trim() || null,
+        date: meetingDate.trim(),
+        link: meetingLink?.trim() || null,
+        createdAt: new Date().toISOString(),
+      };
+      await AsyncStorage.setItem('meetings', JSON.stringify([newMeeting, ...list]));
+      setMeetingDate('');
+      setMeetingNote('');
+      setMeetingLink('');
+      Alert.alert('Başarılı', 'Görüşme eklendi.');
+    } catch (error) {
+      console.error('Görüşme kaydedilemedi', error);
+      Alert.alert('Hata', 'Görüşme kaydedilemedi.');
+    }
+  };
+
+  const openAssignModal = () => {
+    setModalSelectedStudent(null);
+    setShowAssignModal(true);
+  };
+
+  const saveTaskFromModal = async () => {
+    if (!modalSelectedStudent) return Alert.alert('Uyarı', 'Önce bir öğrenci seçin.');
+    if (!taskTitle.trim()) return Alert.alert('Uyarı', 'Görev başlığı boş olamaz.');
+    try {
+      const raw = await AsyncStorage.getItem('assignedTasks');
+      const list = raw ? JSON.parse(raw) : [];
+      const newTask = {
+        id: Date.now().toString(),
+        teacherEmail: currentUser.email,
+        studentEmail: modalSelectedStudent.email,
+        title: taskTitle.trim(),
+        due: taskDue.trim() || null,
+        createdAt: new Date().toISOString(),
+      };
+      await AsyncStorage.setItem('assignedTasks', JSON.stringify([newTask, ...list]));
+      setTaskTitle('');
+      setTaskDue('');
+      setShowAssignModal(false);
+      Alert.alert('Başarılı', 'Görev öğrenciye atandı.');
+    } catch (error) {
+      console.error(error);
+      Alert.alert('Hata', 'Görev atama başarısız.');
+    }
+  };
+
+  const saveMeetingFromModal = async () => {
+    if (!modalSelectedStudent) return Alert.alert('Uyarı', 'Önce bir öğrenci seçin.');
+    if (!meetingDate.trim()) return Alert.alert('Uyarı', 'Görüşme tarihi girin.');
+    try {
+      const raw = await AsyncStorage.getItem('meetings');
+      const list = raw ? JSON.parse(raw) : [];
+      const newMeeting = {
+        id: Date.now().toString(),
+        teacherEmail: currentUser.email,
+        studentEmail: modalSelectedStudent.email,
+        note: meetingNote.trim() || null,
+        date: meetingDate.trim(),
+        link: meetingLink?.trim() || null,
+        createdAt: new Date().toISOString(),
+      };
+      await AsyncStorage.setItem('meetings', JSON.stringify([newMeeting, ...list]));
+      setMeetingDate('');
+      setMeetingNote('');
+      setMeetingLink('');
+      setShowAssignModal(false);
+      Alert.alert('Başarılı', 'Görüşme eklendi.');
+    } catch (error) {
+      console.error(error);
+      Alert.alert('Hata', 'Görüşme ekleme başarısız.');
+    }
+  };
+
   return (
-    <ScrollView
-      contentContainerStyle={styles.scrollContent}
-      showsVerticalScrollIndicator={false}
-    >
+    <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerBrand}>
@@ -105,94 +242,171 @@ const TeacherDashboard = ({ currentUser, navigation }) => {
           </View>
           <View>
             <Text style={styles.headerTitle}>Öğretmen Paneli</Text>
-            <Text style={styles.headerSubtitle}>
-              Hoş geldin, {currentUser?.username}
-            </Text>
+            <Text style={styles.headerSubtitle}>Hoş geldin, {currentUser?.username}</Text>
           </View>
         </View>
-        <TouchableOpacity
-          style={styles.logoutBtn}
-          onPress={() =>
-            navigation.reset({ index: 0, routes: [{ name: 'Login' }] })
-          }
-        >
-          <Text style={styles.logoutBtnText}>Çıkış</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <TouchableOpacity style={[styles.logoutBtn, { backgroundColor: '#EEF2FF' }]} onPress={openAssignModal}>
+            <Text style={[styles.logoutBtnText, { color: '#4338CA' }]}>Yeni Atama</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.logoutBtn} onPress={() => navigation.reset({ index: 0, routes: [{ name: 'Login' }] })}>
+            <Text style={styles.logoutBtnText}>Çıkış</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
-      {/* Stats Cards */}
+      {/* Stats */}
       <View style={styles.statsRow}>
-        {/* Code Card */}
-        <LinearGradient
-          colors={['#FFFFFF', '#FAFBFF']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.statCard}
-        >
+        <LinearGradient colors={['#FFFFFF', '#FAFBFF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.statCard}>
           <Text style={styles.statCardTitle}>KATILIM KODUNUZ</Text>
           <View style={styles.codeContainer}>
             <Text style={styles.codeValue}>{currentUser?.teacherCode}</Text>
-            <TouchableOpacity
-              style={styles.copyButton}
-              onPress={handleCopyCode}
-              activeOpacity={0.7}
-            >
+            <TouchableOpacity style={styles.copyButton} onPress={handleCopyCode} activeOpacity={0.7}>
               <Text style={styles.copyIcon}>📋</Text>
             </TouchableOpacity>
           </View>
-          <Text style={styles.codeHelper}>
-            Öğrencilerin bu kodu ile kayıt olması için paylaş.
-          </Text>
+          <Text style={styles.codeHelper}>Öğrencilerin bu kodu ile kayıt olması için paylaş.</Text>
         </LinearGradient>
 
-        {/* Students Count Card */}
-        <LinearGradient
-          colors={['#FFFFFF', '#FAFBFF']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.statCard}
-        >
+        <LinearGradient colors={['#FFFFFF', '#FAFBFF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.statCard}>
           <Text style={styles.statCardTitle}>ÖĞRENCİ SAYISI</Text>
           <View style={styles.countContainer}>
             <Text style={styles.countValue}>{linkedStudents.length}</Text>
           </View>
-          <Text style={styles.countHelper}>
-            {linkedStudents.length === 0
-              ? 'Henüz öğrenci kaydı yok'
-              : `${linkedStudents.length} öğrenci bağlı`}
-          </Text>
+          <Text style={styles.countHelper}>{linkedStudents.length === 0 ? 'Henüz öğrenci kaydı yok' : `${linkedStudents.length} öğrenci bağlı`}</Text>
         </LinearGradient>
       </View>
 
-      {/* Students List */}
+      {/* Students list */}
       <View style={styles.studentsSection}>
         <Text style={styles.sectionTitle}>Öğrencileriniz</Text>
 
         {loading ? (
-          <View style={styles.loadingContainer}>
-            <Text style={styles.loadingText}>Yükleniyor...</Text>
-          </View>
+          <View style={styles.loadingContainer}><Text style={styles.loadingText}>Yükleniyor...</Text></View>
         ) : linkedStudents.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyEmoji}>📚</Text>
             <Text style={styles.emptyTitle}>Henüz öğrenci yok</Text>
-            <Text style={styles.emptyText}>
-              Öğrenciler sizin katılım kodunuzu kullanarak kayıt olduğunda burada
-              görünecekler.
-            </Text>
+            <Text style={styles.emptyText}>Öğrenciler sizin katılım kodunuzu kullanarak kayıt olduğunda burada görünecekler.</Text>
           </View>
         ) : (
-          <FlatList
-            data={linkedStudents}
-            renderItem={renderStudentItem}
-            keyExtractor={(item) => item.email}
-            scrollEnabled={false}
-            contentContainerStyle={styles.studentList}
-          />
+          <FlatList data={linkedStudents} renderItem={renderStudentItem} keyExtractor={(i) => i.email} contentContainerStyle={styles.studentList} />
         )}
       </View>
 
-      {/* Bottom spacing */}
+      {/* Persistent Assign Section */}
+      <View style={[styles.assignCard, { marginTop: 8 }]}>
+        <Text style={styles.assignTitle}>Görev / Görüşme Ata</Text>
+        <Text style={styles.fieldLabel}>Öğrenci Seç (dokunarak seçiniz)</Text>
+        <FlatList
+          data={linkedStudents}
+          horizontal
+          keyExtractor={(i) => i.email}
+          showsHorizontalScrollIndicator={false}
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              onPress={() => setModalSelectedStudent(item)}
+              style={[
+                styles.studentCard,
+                { width: 160, marginRight: 10 },
+                modalSelectedStudent?.email === item.email ? { borderColor: '#6C63FF', borderWidth: 2 } : null,
+              ]}
+            >
+              <View style={styles.avatarContainer}>
+                <LinearGradient colors={['#6C63FF', '#A855F7']} style={styles.avatar}>
+                  <Text style={styles.avatarText}>{getStudentInitials(item.username)}</Text>
+                </LinearGradient>
+              </View>
+              <View style={styles.studentInfo}>
+                <Text style={styles.studentName}>{item.username}</Text>
+                <Text style={styles.studentEmail}>{item.email}</Text>
+              </View>
+            </TouchableOpacity>
+          )}
+        />
+
+        <Text style={[styles.fieldLabel, { marginTop: 12 }]}>Görev Başlığı</Text>
+        <TextInput style={styles.input} placeholder="Görev başlığı" value={taskTitle} onChangeText={setTaskTitle} />
+        <Text style={[styles.fieldLabel, { marginTop: 8 }]}>Son Tarih</Text>
+        <TextInput style={styles.input} placeholder="gg.aa.yyyy" value={taskDue} onChangeText={setTaskDue} />
+        <TouchableOpacity style={styles.assignBtn} onPress={saveTaskFromModal}><Text style={styles.assignBtnText}>Görevi Ata</Text></TouchableOpacity>
+
+        <View style={{ height: 10 }} />
+
+        <Text style={styles.fieldLabel}>Görüşme Notu</Text>
+        <TextInput style={styles.input} placeholder="Kısa not" value={meetingNote} onChangeText={setMeetingNote} />
+        <Text style={[styles.fieldLabel, { marginTop: 8 }]}>Görüşme Tarihi</Text>
+        <TextInput style={styles.input} placeholder="gg.aa.yyyy ss:dd" value={meetingDate} onChangeText={setMeetingDate} />
+        <Text style={[styles.fieldLabel, { marginTop: 8 }]}>Görüşme Linki (opsiyonel)</Text>
+        <TextInput style={styles.input} placeholder="https://zoom.us/..." value={meetingLink} onChangeText={setMeetingLink} keyboardType="url" autoCapitalize="none" />
+        <TouchableOpacity style={[styles.assignBtn, { backgroundColor: '#6C63FF' }]} onPress={saveMeetingFromModal}><Text style={[styles.assignBtnText, { color: '#fff' }]}>Görüşme Ata</Text></TouchableOpacity>
+      </View>
+
+      {/* Selected student detail + assign forms */}
+      {selectedStudent ? (
+        <View style={styles.assignCard}>
+          <Text style={styles.assignTitle}>Yeni Görev / Görüşme - Seçili: {selectedStudent.username}</Text>
+
+          <Text style={styles.fieldLabel}>Görev Başlığı / Açıklama</Text>
+          <TextInput style={styles.input} placeholder="Örn: TYT Matematik 3 konu" value={taskTitle} onChangeText={setTaskTitle} />
+
+          <Text style={[styles.fieldLabel, { marginTop: 12 }]}>Son Tarih</Text>
+          <TextInput style={styles.input} placeholder="gg.aa.yyyy" value={taskDue} onChangeText={setTaskDue} />
+
+          <TouchableOpacity style={styles.assignBtn} activeOpacity={0.85} onPress={saveTaskForStudent}>
+            <Text style={styles.assignBtnText}>Görevi Gönder</Text>
+          </TouchableOpacity>
+
+          <View style={{ height: 12 }} />
+
+          <Text style={styles.fieldLabel}>Görüşme Notu</Text>
+          <TextInput style={styles.input} placeholder="Kısa not" value={meetingNote} onChangeText={setMeetingNote} />
+          <Text style={[styles.fieldLabel, { marginTop: 12 }]}>Görüşme Tarihi</Text>
+          <TextInput style={styles.input} placeholder="gg.aa.yyyy ss:dd" value={meetingDate} onChangeText={setMeetingDate} />
+
+          <TouchableOpacity style={[styles.assignBtn, { backgroundColor: '#6C63FF' }]} activeOpacity={0.85} onPress={saveMeetingForStudent}>
+            <Text style={[styles.assignBtnText, { color: '#fff' }]}>Görüşme Ekle</Text>
+          </TouchableOpacity>
+          <Text style={[styles.fieldLabel, { marginTop: 8 }]}>Görüşme Linki (opsiyonel)</Text>
+          <TextInput style={styles.input} placeholder="https://zoom.us/..." value={meetingLink} onChangeText={setMeetingLink} keyboardType="url" autoCapitalize="none" />
+        </View>
+      ) : null}
+
+      {/* Assign Modal */}
+      <Modal visible={showAssignModal} animationType="slide" transparent={true} onRequestClose={() => setShowAssignModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.assignTitle}>Yeni Atama Yap</Text>
+            <Text style={styles.fieldLabel}>Öğrenci Seç</Text>
+            <FlatList data={linkedStudents} keyExtractor={(i) => i.email} renderItem={({ item }) => (
+              <TouchableOpacity onPress={() => setModalSelectedStudent(item)} style={[styles.studentCard, modalSelectedStudent?.email === item.email ? { borderColor: '#6C63FF', borderWidth: 2 } : null]}>
+                <View style={styles.avatarContainer}><LinearGradient colors={['#6C63FF', '#A855F7']} style={styles.avatar}><Text style={styles.avatarText}>{getStudentInitials(item.username)}</Text></LinearGradient></View>
+                <View style={styles.studentInfo}><Text style={styles.studentName}>{item.username}</Text><Text style={styles.studentEmail}>{item.email}</Text></View>
+              </TouchableOpacity>
+            )} />
+
+            <Text style={styles.fieldLabel}>Görev Başlığı</Text>
+            <TextInput style={styles.input} placeholder="Görev başlığı" value={taskTitle} onChangeText={setTaskTitle} />
+            <Text style={[styles.fieldLabel, { marginTop: 8 }]}>Son Tarih</Text>
+            <TextInput style={styles.input} placeholder="gg.aa.yyyy" value={taskDue} onChangeText={setTaskDue} />
+            <TouchableOpacity style={styles.assignBtn} onPress={saveTaskFromModal}><Text style={styles.assignBtnText}>Görevi At</Text></TouchableOpacity>
+
+            <View style={{ height: 10 }} />
+
+            <Text style={styles.fieldLabel}>Görüşme Notu</Text>
+            <TextInput style={styles.input} placeholder="Kısa not" value={meetingNote} onChangeText={setMeetingNote} />
+            <Text style={[styles.fieldLabel, { marginTop: 8 }]}>Görüşme Tarihi</Text>
+            <TextInput style={styles.input} placeholder="gg.aa.yyyy ss:dd" value={meetingDate} onChangeText={setMeetingDate} />
+            <Text style={[styles.fieldLabel, { marginTop: 8 }]}>Görüşme Linki (opsiyonel)</Text>
+          <TextInput style={styles.input} placeholder="https://zoom.us/..." value={meetingLink} onChangeText={setMeetingLink} keyboardType="url" autoCapitalize="none" />
+
+            <TouchableOpacity style={[styles.assignBtn, { marginTop: 12, backgroundColor: '#F3F4F6' }]} onPress={() => setShowAssignModal(false)}>
+              <Text style={[styles.assignBtnText, { color: '#374151' }]}>İptal</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       <View style={styles.bottomSpacer} />
     </ScrollView>
   );
@@ -206,6 +420,8 @@ const StudentDashboard = ({ currentUser, navigation, scrollRef }) => {
   const [entries, setEntries] = useState([]);
   const [tasksY, setTasksY] = useState(0);
   const [todayY, setTodayY] = useState(0);
+  const [assignedTasks, setAssignedTasks] = useState([]);
+  const [meetings, setMeetings] = useState([]);
 
   const handleSave = () => {
     if (!hours && !tyt && !ayt) {
@@ -245,12 +461,75 @@ const StudentDashboard = ({ currentUser, navigation, scrollRef }) => {
     setHours('');
     setTyt('');
     setAyt('');
+    // persist performance entry
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem('performanceEntries');
+        const list = raw ? JSON.parse(raw) : [];
+        const toSave = { ...entry, studentEmail: currentUser.email };
+        await AsyncStorage.setItem('performanceEntries', JSON.stringify([toSave, ...list]));
+      } catch (e) {
+        console.error('Performans kaydedilemedi', e);
+      }
+    })();
   };
 
   const handleHoursChange = (text) => {
     const normalized = text.replace(',', '.');
     if (/^[0-9]*\.?[0-9]*$/.test(normalized)) {
       setHours(normalized);
+    }
+  };
+
+  useEffect(() => {
+    const loadPerformance = async () => {
+      try {
+        const raw = await AsyncStorage.getItem('performanceEntries');
+        const list = raw ? JSON.parse(raw) : [];
+        const my = list.filter((p) => p.studentEmail === currentUser.email);
+        setEntries(my);
+      } catch (e) {
+        console.error('Performans yüklenemedi', e);
+      }
+    };
+
+    loadPerformance();
+    const unsub = navigation.addListener('focus', loadPerformance);
+    return unsub;
+  }, [currentUser?.email, navigation]);
+
+  // load assigned tasks and meetings for this student
+  useEffect(() => {
+    const loadAssigned = async () => {
+      try {
+        const raw = await AsyncStorage.getItem('assignedTasks');
+        const rawMeet = await AsyncStorage.getItem('meetings');
+        const list = raw ? JSON.parse(raw) : [];
+        const meets = rawMeet ? JSON.parse(rawMeet) : [];
+        const myTasks = list.filter((t) => t.studentEmail === currentUser.email);
+        const myMeets = meets.filter((m) => m.studentEmail === currentUser.email);
+        setAssignedTasks(myTasks);
+        setMeetings(myMeets);
+      } catch (error) {
+        console.error('Atanan görevler/görüşmeler yüklenemedi', error);
+      }
+    };
+
+    loadAssigned();
+    const unsub = navigation.addListener('focus', loadAssigned);
+    return unsub;
+  }, [currentUser?.email, navigation]);
+
+  const markTaskComplete = async (taskId) => {
+    try {
+      const raw = await AsyncStorage.getItem('assignedTasks');
+      const list = raw ? JSON.parse(raw) : [];
+      const updated = list.filter((t) => t.id !== taskId);
+      await AsyncStorage.setItem('assignedTasks', JSON.stringify(updated));
+      setAssignedTasks((p) => p.filter((t) => t.id !== taskId));
+    } catch (error) {
+      console.error('Görev tamamlanamadı', error);
+      Alert.alert('Hata', 'Görev tamamlanamadı.');
     }
   };
 
@@ -314,13 +593,37 @@ const StudentDashboard = ({ currentUser, navigation, scrollRef }) => {
         <View style={styles.statsHeader}>
           <Text style={styles.statsTitle}>Görevlerim</Text>
           <View style={styles.badge}>
-            <Text style={styles.badgeText}>0 Görev</Text>
+            <Text style={styles.badgeText}>{assignedTasks.length} Görev</Text>
           </View>
         </View>
-        <View style={styles.taskBox}>
-          <Text style={styles.taskTitle}>Harika! Tüm görevleri tamamladın.</Text>
-          <Text style={styles.taskSubtitle}>Şu an için atanan yeni bir görev yok.</Text>
-        </View>
+
+        {assignedTasks.length === 0 ? (
+          <View style={styles.taskBox}>
+            <Text style={styles.taskTitle}>Harika! Tüm görevleri tamamladın.</Text>
+            <Text style={styles.taskSubtitle}>Şu an için atanan yeni bir görev yok.</Text>
+          </View>
+        ) : (
+          assignedTasks.map((t) => (
+            <View key={t.id} style={styles.taskListItem}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.taskItemTitle}>{t.title}</Text>
+                <Text style={styles.smallMuted}>Atayan: {t.teacherEmail}</Text>
+                {t.due ? <Text style={styles.smallMuted}>Son: {t.due}</Text> : null}
+              </View>
+              <TouchableOpacity
+                style={styles.completeBtn}
+                onPress={() =>
+                  Alert.alert('Görevi Tamamla', 'Görevi tamamladığınızdan emin misiniz?', [
+                    { text: 'İptal', style: 'cancel' },
+                    { text: 'Evet', onPress: () => markTaskComplete(t.id) },
+                  ])
+                }
+              >
+                <Text style={styles.completeBtnText}>Tamamlandı</Text>
+              </TouchableOpacity>
+            </View>
+          ))
+        )}
       </View>
 
       {/* Today's Metrics Card */}
@@ -434,6 +737,33 @@ const StudentDashboard = ({ currentUser, navigation, scrollRef }) => {
               </>
             );
           })()
+        )}
+      </View>
+
+      {/* Meetings Card */}
+      <View style={styles.statsCard}>
+        <View style={styles.statsHeader}>
+          <Text style={styles.statsTitle}>Görüşmelerim</Text>
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>{meetings.length} Görüşme</Text>
+          </View>
+        </View>
+
+        {meetings.length === 0 ? (
+          <View style={styles.taskBox}>
+            <Text style={styles.taskTitle}>Henüz planlı görüşmeniz yok.</Text>
+            <Text style={styles.taskSubtitle}>Öğretmeninizi bekleyin veya takvimi kontrol edin.</Text>
+          </View>
+        ) : (
+          meetings.map((m) => (
+            <View key={m.id} style={styles.meetingItem}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.taskItemTitle}>{m.date}</Text>
+                {m.note ? <Text style={styles.smallMuted}>{m.note}</Text> : <Text style={styles.smallMuted}>Not yok</Text>}
+                <Text style={styles.smallMuted}>Atayan: {m.teacherEmail}</Text>
+              </View>
+            </View>
+          ))
         )}
       </View>
 
@@ -767,6 +1097,22 @@ const styles = StyleSheet.create({
     color: '#D1D5DB',
     marginLeft: 10,
   },
+  assignCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    marginHorizontal: 16,
+    marginBottom: 16,
+    shadowColor: '#6C63FF',
+    shadowOpacity: 0.06,
+    shadowOffset: { width: 0, height: 6 },
+    shadowRadius: 14,
+    elevation: 3,
+  },
+  assignTitle: { fontSize: 16, fontWeight: '800', color: '#111827', marginBottom: 12 },
+  fieldLabel: { fontSize: 13, color: '#6B7280', marginBottom: 6 },
+  assignBtn: { marginTop: 12, borderRadius: 12, backgroundColor: '#A855F7', paddingVertical: 12, alignItems: 'center' },
+  assignBtnText: { color: '#FFFFFF', fontWeight: '800' },
   loadingContainer: {
     paddingVertical: 40,
     justifyContent: 'center',
@@ -782,6 +1128,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    padding: 16,
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    maxHeight: '85%'
   },
   emptyEmoji: {
     fontSize: 48,
@@ -1017,6 +1375,28 @@ const styles = StyleSheet.create({
     elevation: 5,
     marginBottom: 16,
     marginHorizontal: 16,
+  },
+  taskListItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#EEF2FF',
+  },
+  taskItemTitle: { fontSize: 15, fontWeight: '700', color: '#111827', marginBottom: 4 },
+  smallMuted: { fontSize: 12, color: '#6B7280', marginTop: 2 },
+  completeBtn: { backgroundColor: '#10B981', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10 },
+  completeBtnText: { color: '#FFFFFF', fontWeight: '700' },
+  meetingItem: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
   },
   chartTitle: {
     fontSize: 18,
