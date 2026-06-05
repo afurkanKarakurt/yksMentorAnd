@@ -326,7 +326,15 @@ const TeacherDashboard = ({ currentUser, navigation }) => {
         />
 
         <Text style={[styles.fieldLabel, { marginTop: 12 }]}>Görev Başlığı</Text>
-        <TextInput style={styles.input} placeholder="Görev başlığı" value={taskTitle} onChangeText={setTaskTitle} />
+        <TextInput
+          style={styles.input}
+          placeholder="Görev başlığı"
+          value={taskTitle}
+          onChangeText={setTaskTitle}
+          keyboardType="default"
+          autoCorrect={false}
+          autoCapitalize="words"
+        />
         <Text style={[styles.fieldLabel, { marginTop: 8 }]}>Son Tarih</Text>
         <TextInput style={styles.input} placeholder="gg.aa.yyyy" value={taskDue} onChangeText={setTaskDue} />
         <TouchableOpacity style={styles.assignBtn} onPress={saveTaskFromModal}><Text style={styles.assignBtnText}>Görevi Ata</Text></TouchableOpacity>
@@ -334,11 +342,29 @@ const TeacherDashboard = ({ currentUser, navigation }) => {
         <View style={{ height: 10 }} />
 
         <Text style={styles.fieldLabel}>Görüşme Notu</Text>
-        <TextInput style={styles.input} placeholder="Kısa not" value={meetingNote} onChangeText={setMeetingNote} />
+        <TextInput
+          style={[styles.input, { minHeight: 80, textAlignVertical: 'top' }]}
+          placeholder="Kısa not"
+          value={meetingNote}
+          onChangeText={setMeetingNote}
+          keyboardType="default"
+          autoCorrect={false}
+          autoCapitalize="sentences"
+          multiline={true}
+          numberOfLines={4}
+        />
         <Text style={[styles.fieldLabel, { marginTop: 8 }]}>Görüşme Tarihi</Text>
         <TextInput style={styles.input} placeholder="gg.aa.yyyy ss:dd" value={meetingDate} onChangeText={setMeetingDate} />
         <Text style={[styles.fieldLabel, { marginTop: 8 }]}>Görüşme Linki (opsiyonel)</Text>
-        <TextInput style={styles.input} placeholder="https://zoom.us/..." value={meetingLink} onChangeText={setMeetingLink} keyboardType="url" autoCapitalize="none" />
+        <TextInput
+          style={styles.input}
+          placeholder="https://zoom.us/..."
+          value={meetingLink}
+          onChangeText={setMeetingLink}
+          keyboardType="default"
+          autoCorrect={false}
+          autoCapitalize="none"
+        />
         <TouchableOpacity style={[styles.assignBtn, { backgroundColor: '#6C63FF' }]} onPress={saveMeetingFromModal}><Text style={[styles.assignBtnText, { color: '#fff' }]}>Görüşme Ata</Text></TouchableOpacity>
       </View>
 
@@ -348,7 +374,15 @@ const TeacherDashboard = ({ currentUser, navigation }) => {
           <Text style={styles.assignTitle}>Yeni Görev / Görüşme - Seçili: {selectedStudent.username}</Text>
 
           <Text style={styles.fieldLabel}>Görev Başlığı / Açıklama</Text>
-          <TextInput style={styles.input} placeholder="Örn: TYT Matematik 3 konu" value={taskTitle} onChangeText={setTaskTitle} />
+          <TextInput
+            style={styles.input}
+            placeholder="Örn: TYT Matematik 3 konu"
+            value={taskTitle}
+            onChangeText={setTaskTitle}
+            keyboardType="default"
+            autoCorrect={false}
+            autoCapitalize="words"
+          />
 
           <Text style={[styles.fieldLabel, { marginTop: 12 }]}>Son Tarih</Text>
           <TextInput style={styles.input} placeholder="gg.aa.yyyy" value={taskDue} onChangeText={setTaskDue} />
@@ -360,7 +394,17 @@ const TeacherDashboard = ({ currentUser, navigation }) => {
           <View style={{ height: 12 }} />
 
           <Text style={styles.fieldLabel}>Görüşme Notu</Text>
-          <TextInput style={styles.input} placeholder="Kısa not" value={meetingNote} onChangeText={setMeetingNote} />
+          <TextInput
+            style={[styles.input, { minHeight: 80, textAlignVertical: 'top' }]}
+            placeholder="Kısa not"
+            value={meetingNote}
+            onChangeText={setMeetingNote}
+            keyboardType="default"
+            autoCorrect={false}
+            autoCapitalize="sentences"
+            multiline={true}
+            numberOfLines={4}
+          />
           <Text style={[styles.fieldLabel, { marginTop: 12 }]}>Görüşme Tarihi</Text>
           <TextInput style={styles.input} placeholder="gg.aa.yyyy ss:dd" value={meetingDate} onChangeText={setMeetingDate} />
 
@@ -368,7 +412,15 @@ const TeacherDashboard = ({ currentUser, navigation }) => {
             <Text style={[styles.assignBtnText, { color: '#fff' }]}>Görüşme Ekle</Text>
           </TouchableOpacity>
           <Text style={[styles.fieldLabel, { marginTop: 8 }]}>Görüşme Linki (opsiyonel)</Text>
-          <TextInput style={styles.input} placeholder="https://zoom.us/..." value={meetingLink} onChangeText={setMeetingLink} keyboardType="url" autoCapitalize="none" />
+          <TextInput
+            style={styles.input}
+            placeholder="https://zoom.us/..."
+            value={meetingLink}
+            onChangeText={setMeetingLink}
+            keyboardType="default"
+            autoCorrect={false}
+            autoCapitalize="none"
+          />
         </View>
       ) : null}
 
@@ -386,7 +438,15 @@ const TeacherDashboard = ({ currentUser, navigation }) => {
             )} />
 
             <Text style={styles.fieldLabel}>Görev Başlığı</Text>
-            <TextInput style={styles.input} placeholder="Görev başlığı" value={taskTitle} onChangeText={setTaskTitle} />
+            <TextInput
+              style={styles.input}
+              placeholder="Görev başlığı"
+              value={taskTitle}
+              onChangeText={setTaskTitle}
+              keyboardType="default"
+              autoCorrect={false}
+              autoCapitalize="words"
+            />
             <Text style={[styles.fieldLabel, { marginTop: 8 }]}>Son Tarih</Text>
             <TextInput style={styles.input} placeholder="gg.aa.yyyy" value={taskDue} onChangeText={setTaskDue} />
             <TouchableOpacity style={styles.assignBtn} onPress={saveTaskFromModal}><Text style={styles.assignBtnText}>Görevi At</Text></TouchableOpacity>
@@ -394,11 +454,29 @@ const TeacherDashboard = ({ currentUser, navigation }) => {
             <View style={{ height: 10 }} />
 
             <Text style={styles.fieldLabel}>Görüşme Notu</Text>
-            <TextInput style={styles.input} placeholder="Kısa not" value={meetingNote} onChangeText={setMeetingNote} />
+            <TextInput
+              style={[styles.input, { minHeight: 80, textAlignVertical: 'top' }]}
+              placeholder="Kısa not"
+              value={meetingNote}
+              onChangeText={setMeetingNote}
+              keyboardType="default"
+              autoCorrect={false}
+              autoCapitalize="sentences"
+              multiline={true}
+              numberOfLines={4}
+            />
             <Text style={[styles.fieldLabel, { marginTop: 8 }]}>Görüşme Tarihi</Text>
             <TextInput style={styles.input} placeholder="gg.aa.yyyy ss:dd" value={meetingDate} onChangeText={setMeetingDate} />
             <Text style={[styles.fieldLabel, { marginTop: 8 }]}>Görüşme Linki (opsiyonel)</Text>
-          <TextInput style={styles.input} placeholder="https://zoom.us/..." value={meetingLink} onChangeText={setMeetingLink} keyboardType="url" autoCapitalize="none" />
+          <TextInput
+            style={styles.input}
+            placeholder="https://zoom.us/..."
+            value={meetingLink}
+            onChangeText={setMeetingLink}
+            keyboardType="default"
+            autoCorrect={false}
+            autoCapitalize="none"
+          />
 
             <TouchableOpacity style={[styles.assignBtn, { marginTop: 12, backgroundColor: '#F3F4F6' }]} onPress={() => setShowAssignModal(false)}>
               <Text style={[styles.assignBtnText, { color: '#374151' }]}>İptal</Text>
@@ -668,6 +746,13 @@ const StudentDashboard = ({ currentUser, navigation, scrollRef }) => {
         <TouchableOpacity style={styles.saveButton} activeOpacity={0.85} onPress={handleSave}>
           <Text style={styles.saveButtonText}>Bugünkü Verileri Kaydet</Text>
         </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.saveButton, { backgroundColor: '#6C63FF', marginTop: 12 }]}
+          activeOpacity={0.85}
+          onPress={() => navigation.navigate('NetCalculator')}
+        >
+          <Text style={styles.saveButtonText}>Net Hesaplama</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Chart Card */}
@@ -889,6 +974,13 @@ export default function HomeScreen({ navigation }) {
           }}
         >
           <Text style={styles.bottomBtnText}>Performans</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.bottomBtn}
+          activeOpacity={0.85}
+          onPress={() => navigation.navigate('NetCalculator')}
+        >
+          <Text style={styles.bottomBtnText}>Net Hesaplama</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.bottomBtn}

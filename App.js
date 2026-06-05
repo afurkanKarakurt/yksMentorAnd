@@ -10,6 +10,7 @@ import TasksScreen from './screens/TasksScreen';
 import PerformanceScreen from './screens/PerformanceScreen';
 import MeetingsScreen from './screens/MeetingsScreen';
 import StudentDetailScreen from './screens/StudentDetailScreen';
+import NetCalculatorScreen from './screens/NetCalculatorScreen';
 
 const Stack = createStackNavigator();
 
@@ -27,6 +28,7 @@ export default function App() {
         <Stack.Screen name="StudentDetail" component={StudentDetailScreen} />
         <Stack.Screen name="Tasks" component={TasksScreen} />
         <Stack.Screen name="Performance" component={PerformanceScreen} />
+        <Stack.Screen name="NetCalculator" component={NetCalculatorScreen} />
         <Stack.Screen name="Meetings" component={MeetingsScreen} />
       </Stack.Navigator>
     </NavigationContainer>

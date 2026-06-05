@@ -16,7 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
+const USERNAME_REGEX = /^[A-Za-z0-9_ÇçĞğİıÖöŞşÜü ]+$/;
 export default function RegisterScreen({ navigation }) {
   const [role, setRole] = useState('student'); // 'student' | 'teacher'
   const [username, setUsername] = useState('');
@@ -55,17 +55,17 @@ export default function RegisterScreen({ navigation }) {
   const normalizeEmail = (val) => val.trim().toLowerCase();
 
   const validateUsername = (val) => {
-    if (!val.trim()) {
+    const trimmed = val.trim();
+    if (!trimmed) {
       setUsernameError('Kullanıcı adı gereklidir.');
       return false;
     }
-    if (val.trim().length < 3) {
+    if (trimmed.length < 3) {
       setUsernameError('Kullanıcı adı en az 3 karakter olmalıdır.');
       return false;
     }
-    // Allow Latin letters and Turkish-specific letters, digits and underscore
-    if (!/^[A-Za-z0-9_ÇçĞğİıÖöŞşÜü]+$/.test(val.trim())) {
-      setUsernameError('Sadece harf, rakam ve alt çizgi kullanılabilir.');
+    if (!USERNAME_REGEX.test(trimmed)) {
+      setUsernameError('Sadece harf, rakam, boşluk ve alt çizgi kullanılabilir.');
       return false;
     }
     setUsernameError('');
@@ -293,7 +293,7 @@ export default function RegisterScreen({ navigation }) {
                     usernameFocused && styles.inputFocused,
                     usernameError ? styles.inputError : null,
                   ]}
-                  placeholder="ornek_kullanici"
+                  placeholder="örnek_kullanici"
                   placeholderTextColor="#C4C4C4"
                   value={username}
                   onChangeText={(text) => {
@@ -305,6 +305,7 @@ export default function RegisterScreen({ navigation }) {
                     setUsernameFocused(false);
                     validateUsername(username);
                   }}
+                  keyboardType="default"
                   autoCapitalize="none"
                   autoCorrect={false}
                   returnKeyType="next"
