@@ -11,6 +11,7 @@ import PerformanceScreen from './screens/PerformanceScreen';
 import MeetingsScreen from './screens/MeetingsScreen';
 import StudentDetailScreen from './screens/StudentDetailScreen';
 import NetCalculatorScreen from './screens/NetCalculatorScreen';
+import ChatBot from './components/ChatBot';
 
 const Stack = createStackNavigator();
 
@@ -31,6 +32,8 @@ export default function App() {
         <Stack.Screen name="NetCalculator" component={NetCalculatorScreen} />
         <Stack.Screen name="Meetings" component={MeetingsScreen} />
       </Stack.Navigator>
+      {/* Global chat bot floating button + modal */}
+      <ChatBot />
     </NavigationContainer>
   );
 }
